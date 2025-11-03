@@ -1,0 +1,19 @@
+# Netlify configuration file
+
+# This section defines the build settings for your site.
+[build]
+  # The command Netlify will run to build your React application.
+  command = "npm run build"
+  
+  # The folder where your serverless functions are located.
+  functions = "netlify/functions"
+  
+  # The folder that contains the final website files after the build is complete.
+  publish = "dist"
+
+# This rule makes your API calls work. It redirects any request
+# from your website starting with "/api/" to the correct serverless function.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
