@@ -1,119 +1,91 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Member, Event } from './types';
+import useLocalStorage from './hooks/useLocalStorage';
 import Header from './components/Header';
 import AdminDashboard from './components/AdminDashboard';
 import EventManagement from './components/EventManagement';
 import UserView from './components/UserView';
 import AdminLogin from './components/AdminLogin';
 
+const ADMIN_CREDENTIALS = [
+  { cni: 'admin', password: 'password' },
+  { cni: 'GI11120', password: 'CSS12340' },
+  { cni: 'K591388', password: '0661690222Ma' },
+];
+
 const App: React.FC = () => {
-  const [members, setMembers] = useState<Member[]>([]);
-  const [events, setEvents] = useState<Event[]>([]);
+  const [members, setMembers] = useLocalStorage<Member[]>('club_members', []);
+  const [events, setEvents] = useLocalStorage<Event[]>('club_events', []);
   
   const [mode, setMode] = useState<'user' | 'admin'>('user');
-  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/data');
-      if (!response.ok) throw new Error('Failed to fetch data');
-      const { members, events } = await response.json();
-      setMembers(members);
-      setEvents(events);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const apiRequest = async (endpoint: string, method: string, body?: any) => {
-    const options: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      }
-    };
-    if (body) {
-      options.body = JSON.stringify(body);
-    }
-    const response = await fetch(endpoint, options);
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'An API error occurred');
-    }
-    return response.json();
-  };
-
-  const addMember = async (memberData: Omit<Member, 'id'>): Promise<Member> => {
-    const newMember = await apiRequest('/api/members', 'POST', { memberData });
+  
+  const addMember = (memberData: Omit<Member, 'id'>): Member => {
+    const newMember: Member = { ...memberData, id: crypto.randomUUID() };
     setMembers(prev => [...prev, newMember]);
     return newMember;
   };
 
-  const addEvent = async (name: string) => {
+  const addEvent = (name: string) => {
     if (name.trim() === '') return;
-    const newEvent = await apiRequest('/api/events', 'POST', { name });
+    const newEvent: Event = {
+      id: crypto.randomUUID(),
+      name,
+      date: new Date().toISOString(),
+      participants: [],
+    };
     setEvents(prev => [newEvent, ...prev]);
   };
   
-  const addParticipantToEvent = async (eventId: string, memberId: string) => {
-    await apiRequest('/api/participants', 'POST', { eventId, memberId });
-    // Optimistic update
+  const addParticipantToEvent = (eventId: string, memberId: string) => {
     setEvents(prev => prev.map(e => e.id === eventId ? {
       ...e,
       participants: [...e.participants, { memberId, status: 'unmarked', points: 0 }]
     } : e));
   };
   
-  const removeParticipantFromEvent = async (eventId: string, memberId: string) => {
-    await apiRequest('/api/participants', 'DELETE', { eventId, memberId });
+  const removeParticipantFromEvent = (eventId: string, memberId: string) => {
     setEvents(prev => prev.map(e => e.id === eventId ? {
       ...e,
       participants: e.participants.filter(p => p.memberId !== memberId)
     } : e));
   };
 
-  const updateParticipantStatus = async (eventId: string, memberId: string, status: 'present' | 'absent') => {
-    const points = status === 'absent' ? 0 : events.find(e => e.id === eventId)?.participants.find(p => p.memberId === memberId)?.points || 0;
-    await apiRequest('/api/participants', 'PUT', { eventId, memberId, status, points });
-     setEvents(prev => prev.map(e => e.id === eventId ? {
-      ...e,
-      participants: e.participants.map(p => p.memberId === memberId ? {...p, status, points} : p)
-    } : e));
+  const updateParticipantStatus = (eventId: string, memberId: string, status: 'present' | 'absent') => {
+     setEvents(prevEvents => prevEvents.map(e => {
+        if (e.id !== eventId) return e;
+        return {
+          ...e,
+          participants: e.participants.map(p => {
+            if (p.memberId !== memberId) return p;
+            const newPoints = status === 'absent' ? 0 : p.points;
+            return { ...p, status, points: newPoints };
+          })
+        }
+     }));
   };
 
-  const updateParticipantPoints = async (eventId: string, memberId: string, points: number) => {
+  const updateParticipantPoints = (eventId: string, memberId: string, points: number) => {
     const finalPoints = isNaN(points) ? 0 : points;
-    await apiRequest('/api/participants', 'PUT', { eventId, memberId, points: finalPoints });
      setEvents(prev => prev.map(e => e.id === eventId ? {
       ...e,
       participants: e.participants.map(p => p.memberId === memberId ? {...p, points: finalPoints} : p)
     } : e));
   };
 
-  const addNewMemberAndAddToEvent = async (eventId: string, memberData: Omit<Member, 'id'>) => {
+  const addNewMemberAndAddToEvent = (eventId: string, memberData: Omit<Member, 'id'>) => {
     if (memberData.cni && members.some(m => m.cni?.toLowerCase() === memberData.cni?.toLowerCase())) {
         alert("A member with this CNI already exists.");
         return;
     }
-    const newMember = await addMember(memberData);
-    await addParticipantToEvent(eventId, newMember.id);
+    const newMember = addMember(memberData);
+    addParticipantToEvent(eventId, newMember.id);
   };
   
-  const importMembers = async (file: File) => {
+  const importMembers = (file: File) => {
     const reader = new FileReader();
-    reader.onload = async (event) => {
+    reader.onload = (event) => {
       const text = event.target?.result as string;
       if (!text) return alert("File is empty or could not be read.");
 
@@ -148,13 +120,8 @@ const App: React.FC = () => {
       }
 
       if (membersToImport.length > 0) {
-        try {
-          const imported = await apiRequest('/api/members', 'POST', { members: membersToImport });
-          setMembers(prev => [...prev, ...imported]);
-          alert(`${imported.length} new members imported successfully!`);
-        } catch (e) {
-            alert((e as Error).message);
-        }
+        setMembers(prev => [...prev, ...membersToImport.map(m => ({...m, id: crypto.randomUUID()}))]);
+        alert(`${membersToImport.length} new members imported successfully!`);
       } else {
         alert("No new members found to import. They may already exist in the list (checked by CNI).");
       }
@@ -203,24 +170,17 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
   
-  const handleAdminLogin = async (cni: string, pass: string): Promise<boolean> => {
-    try {
-      const response = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cni, password: pass }),
-      });
-      if (!response.ok) return false;
-      const { token } = await response.json();
-      setAuthToken(token);
+  const handleAdminLogin = (cni: string, pass: string): boolean => {
+    const isValid = ADMIN_CREDENTIALS.some(cred => cred.cni === cni && cred.password === pass);
+    if (isValid) {
+      setIsAuthenticated(true);
       return true;
-    } catch {
-      return false;
     }
+    return false;
   };
 
   const handleAdminLogout = () => {
-    setAuthToken(null);
+    setIsAuthenticated(false);
     setSelectedEventId(null);
     setMode('user');
   };
@@ -243,15 +203,12 @@ const App: React.FC = () => {
   };
 
   const renderContent = () => {
-    if (isLoading) return <div className="text-center p-10">Loading data...</div>;
-    if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
-    
     if (mode === 'user') {
       return <UserView members={members} events={events} />;
     }
 
     if (mode === 'admin') {
-      if (!authToken) {
+      if (!isAuthenticated) {
         return <AdminLogin onLogin={handleAdminLogin} />;
       }
       
@@ -292,7 +249,7 @@ const App: React.FC = () => {
       <Header 
         currentMode={mode} 
         onToggleMode={() => setMode(prev => prev === 'admin' ? 'user' : 'admin')} 
-        isAdminAuthenticated={!!authToken}
+        isAdminAuthenticated={isAuthenticated}
         onLogout={handleAdminLogout}
       />
       <main className="container mx-auto p-4 md:p-6 lg:p-8">
