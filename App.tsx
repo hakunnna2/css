@@ -1,106 +1,119 @@
-import React, { useState, useCallback } from 'react';
-import { useLocalStorage } from './hooks/useLocalStorage';
-import { Member, Event, Participant } from './types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Member, Event } from './types';
 import Header from './components/Header';
 import AdminDashboard from './components/AdminDashboard';
 import EventManagement from './components/EventManagement';
 import UserView from './components/UserView';
 import AdminLogin from './components/AdminLogin';
 
-// Constants
-const ADMIN_CREDENTIALS = [
-  { cni: 'admin', password: 'password' },
-  { cni: 'GI11120', password: 'CSS12340' },
-  { cni: 'K591388', password: '0661690222Ma' },
-];
-
 const App: React.FC = () => {
-  const [members, setMembers] = useLocalStorage<Member[]>('members', []);
-  const [events, setEvents] = useLocalStorage<Event[]>('events', []);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
   
   const [mode, setMode] = useState<'user' | 'admin'>('user');
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const addMember = (memberData: Omit<Member, 'id'>): Member => {
-    const newMember: Member = {
-      ...memberData,
-      id: crypto.randomUUID(),
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/data');
+      if (!response.ok) throw new Error('Failed to fetch data');
+      const { members, events } = await response.json();
+      setMembers(members);
+      setEvents(events);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const apiRequest = async (endpoint: string, method: string, body?: any) => {
+    const options: RequestInit = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      }
     };
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+    const response = await fetch(endpoint, options);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'An API error occurred');
+    }
+    return response.json();
+  };
+
+  const addMember = async (memberData: Omit<Member, 'id'>): Promise<Member> => {
+    const newMember = await apiRequest('/api/members', 'POST', { memberData });
     setMembers(prev => [...prev, newMember]);
     return newMember;
   };
 
-  const addEvent = (name: string) => {
+  const addEvent = async (name: string) => {
     if (name.trim() === '') return;
-    const newEvent: Event = {
-      id: crypto.randomUUID(),
-      name,
-      date: new Date().toISOString(),
-      participants: [],
-    };
-    setEvents(prev => [...prev, newEvent]);
-  };
-
-  const addParticipantToEvent = (eventId: string, memberId: string) => {
-    setEvents(prevEvents => prevEvents.map(event => {
-      if (event.id === eventId && !event.participants.some(p => p.memberId === memberId)) {
-        const newParticipant: Participant = { memberId, status: 'unmarked', points: 0 };
-        return { ...event, participants: [...event.participants, newParticipant] };
-      }
-      return event;
-    }));
+    const newEvent = await apiRequest('/api/events', 'POST', { name });
+    setEvents(prev => [newEvent, ...prev]);
   };
   
-  const removeParticipantFromEvent = (eventId: string, memberId: string) => {
-    setEvents(prevEvents => prevEvents.map(event => {
-      if (event.id === eventId) {
-        return { ...event, participants: event.participants.filter(p => p.memberId !== memberId) };
-      }
-      return event;
-    }));
+  const addParticipantToEvent = async (eventId: string, memberId: string) => {
+    await apiRequest('/api/participants', 'POST', { eventId, memberId });
+    // Optimistic update
+    setEvents(prev => prev.map(e => e.id === eventId ? {
+      ...e,
+      participants: [...e.participants, { memberId, status: 'unmarked', points: 0 }]
+    } : e));
+  };
+  
+  const removeParticipantFromEvent = async (eventId: string, memberId: string) => {
+    await apiRequest('/api/participants', 'DELETE', { eventId, memberId });
+    setEvents(prev => prev.map(e => e.id === eventId ? {
+      ...e,
+      participants: e.participants.filter(p => p.memberId !== memberId)
+    } : e));
   };
 
-  const updateParticipantStatus = (eventId: string, memberId: string, status: 'present' | 'absent') => {
-    setEvents(prevEvents => prevEvents.map(event => {
-        if (event.id === eventId) {
-            return {
-                ...event,
-                participants: event.participants.map(p => 
-                    p.memberId === memberId ? { ...p, status, points: status === 'absent' ? 0 : p.points } : p
-                )
-            };
-        }
-        return event;
-    }));
+  const updateParticipantStatus = async (eventId: string, memberId: string, status: 'present' | 'absent') => {
+    const points = status === 'absent' ? 0 : events.find(e => e.id === eventId)?.participants.find(p => p.memberId === memberId)?.points || 0;
+    await apiRequest('/api/participants', 'PUT', { eventId, memberId, status, points });
+     setEvents(prev => prev.map(e => e.id === eventId ? {
+      ...e,
+      participants: e.participants.map(p => p.memberId === memberId ? {...p, status, points} : p)
+    } : e));
   };
 
-  const updateParticipantPoints = (eventId: string, memberId: string, points: number) => {
-      setEvents(prevEvents => prevEvents.map(event => {
-          if (event.id === eventId) {
-              return {
-                  ...event,
-                  participants: event.participants.map(p =>
-                      p.memberId === memberId ? { ...p, points: isNaN(points) ? 0 : points } : p
-                  )
-              };
-          }
-          return event;
-      }));
+  const updateParticipantPoints = async (eventId: string, memberId: string, points: number) => {
+    const finalPoints = isNaN(points) ? 0 : points;
+    await apiRequest('/api/participants', 'PUT', { eventId, memberId, points: finalPoints });
+     setEvents(prev => prev.map(e => e.id === eventId ? {
+      ...e,
+      participants: e.participants.map(p => p.memberId === memberId ? {...p, points: finalPoints} : p)
+    } : e));
   };
 
-  const addNewMemberAndAddToEvent = (eventId: string, memberData: Omit<Member, 'id'>) => {
+  const addNewMemberAndAddToEvent = async (eventId: string, memberData: Omit<Member, 'id'>) => {
     if (memberData.cni && members.some(m => m.cni?.toLowerCase() === memberData.cni?.toLowerCase())) {
         alert("A member with this CNI already exists.");
         return;
     }
-    const newMember = addMember(memberData);
-    addParticipantToEvent(eventId, newMember.id);
+    const newMember = await addMember(memberData);
+    await addParticipantToEvent(eventId, newMember.id);
   };
-
-  const importMembers = (file: File) => {
+  
+  const importMembers = async (file: File) => {
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const text = event.target?.result as string;
       if (!text) return alert("File is empty or could not be read.");
 
@@ -113,10 +126,9 @@ const App: React.FC = () => {
       const cneIndex = header.indexOf('cne');
       const schoolLevelIndex = header.indexOf('niveau scolaire');
       const whatsappIndex = header.indexOf('numéro whatsapp');
-
       if (nameIndex === -1) return alert('CSV must contain a "Nom complet" column.');
 
-      const newMembers: Member[] = [];
+      const membersToImport: Omit<Member, 'id'>[] = [];
       const existingCnis = new Set(members.map(m => m.cni?.toLowerCase()).filter(Boolean));
 
       for (let i = 1; i < rows.length; i++) {
@@ -125,22 +137,24 @@ const App: React.FC = () => {
         const cni = cniIndex > -1 ? values[cniIndex] : undefined;
 
         if (name && cni && !existingCnis.has(cni.toLowerCase())) {
-          const newMember: Member = {
-            id: crypto.randomUUID(),
-            name,
-            cni,
+          membersToImport.push({
+            name, cni,
             cne: cneIndex > -1 ? values[cneIndex] : undefined,
             schoolLevel: schoolLevelIndex > -1 ? values[schoolLevelIndex] : undefined,
             whatsapp: whatsappIndex > -1 ? values[whatsappIndex] : undefined,
-          };
-          newMembers.push(newMember);
+          });
           existingCnis.add(cni.toLowerCase());
         }
       }
 
-      if (newMembers.length > 0) {
-        setMembers(prev => [...prev, ...newMembers]);
-        alert(`${newMembers.length} new members imported successfully!`);
+      if (membersToImport.length > 0) {
+        try {
+          const imported = await apiRequest('/api/members', 'POST', { members: membersToImport });
+          setMembers(prev => [...prev, ...imported]);
+          alert(`${imported.length} new members imported successfully!`);
+        } catch (e) {
+            alert((e as Error).message);
+        }
       } else {
         alert("No new members found to import. They may already exist in the list (checked by CNI).");
       }
@@ -148,7 +162,7 @@ const App: React.FC = () => {
     reader.onerror = () => alert("Error reading file.");
     reader.readAsText(file);
   };
-  
+
   const exportEventParticipantsCSV = (eventId: string) => {
     const event = events.find(e => e.id === eventId);
     if (!event) return;
@@ -188,16 +202,36 @@ const App: React.FC = () => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+  
+  const handleAdminLogin = async (cni: string, pass: string): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cni, password: pass }),
+      });
+      if (!response.ok) return false;
+      const { token } = await response.json();
+      setAuthToken(token);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleAdminLogout = () => {
+    setAuthToken(null);
+    setSelectedEventId(null);
+    setMode('user');
+  };
 
   const exportAllData = () => {
     const dataToExport = {
-        members,
-        events,
+      members,
+      events
     };
-    const jsonString = JSON.stringify(dataToExport, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const filename = `club_data_export_${new Date().toISOString().split('T')[0]}.json`;
-
+    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+    const filename = `club_data_backup_${new Date().toISOString().split('T')[0]}.json`;
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
@@ -208,30 +242,16 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const toggleMode = () => {
-    setMode(prevMode => (prevMode === 'admin' ? 'user' : 'admin'));
-    setSelectedEventId(null); // Reset view when toggling mode
-  };
-
-  const handleAdminLogin = (cni: string, pass: string): boolean => {
-    const isValidAdmin = ADMIN_CREDENTIALS.some(cred => cred.cni === cni && cred.password === pass);
-    if (isValidAdmin) setIsAdminAuthenticated(true);
-    return isValidAdmin;
-  };
-
-  const handleAdminLogout = () => {
-    setIsAdminAuthenticated(false);
-    setSelectedEventId(null);
-    setMode('user');
-  };
-
   const renderContent = () => {
+    if (isLoading) return <div className="text-center p-10">Loading data...</div>;
+    if (error) return <div className="text-center p-10 text-red-500">Error: {error}</div>;
+    
     if (mode === 'user') {
       return <UserView members={members} events={events} />;
     }
 
     if (mode === 'admin') {
-      if (!isAdminAuthenticated) {
+      if (!authToken) {
         return <AdminLogin onLogin={handleAdminLogin} />;
       }
       
@@ -271,8 +291,8 @@ const App: React.FC = () => {
     <div className="min-h-screen text-gray-800 dark:text-gray-200">
       <Header 
         currentMode={mode} 
-        onToggleMode={toggleMode} 
-        isAdminAuthenticated={isAdminAuthenticated}
+        onToggleMode={() => setMode(prev => prev === 'admin' ? 'user' : 'admin')} 
+        isAdminAuthenticated={!!authToken}
         onLogout={handleAdminLogout}
       />
       <main className="container mx-auto p-4 md:p-6 lg:p-8">
