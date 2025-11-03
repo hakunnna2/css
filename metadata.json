@@ -1,0 +1,5 @@
+
+{
+  "name": "Club Points Dashboard",
+  "description": "A dashboard to manage club members' points based on attendance and activity performance. It allows for member management, attendance tracking, activity rating, and dynamic point calculation with data persisted in localStorage."
+}
