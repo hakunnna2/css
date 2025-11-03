@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { useLocalStorage } from './hooks/useLocalStorage';
 import { Member, Event, Participant } from './types';
+import { useMembers, useEvents } from './hooks/useDatabase';
 import Header from './components/Header';
 import AdminDashboard from './components/AdminDashboard';
 import EventManagement from './components/EventManagement';
@@ -15,8 +15,8 @@ const ADMIN_CREDENTIALS = [
 ];
 
 const App: React.FC = () => {
-  const [members, setMembers] = useLocalStorage<Member[]>('members', []);
-  const [events, setEvents] = useLocalStorage<Event[]>('events', []);
+  const { members, loading: membersLoading, error: membersError, addMember, updateMember, deleteMember } = useMembers();
+  const { events, loading: eventsLoading, error: eventsError, addEvent, updateEvent, deleteEvent } = useEvents();
   
   const [mode, setMode] = useState<'user' | 'admin'>('user');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
