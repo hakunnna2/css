@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 import { Member, Event } from '../types';
 import MemberCard from './MemberCard';

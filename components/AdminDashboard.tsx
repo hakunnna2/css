@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState } from 'react';
 import { Event } from '../types';
 import { PlusIcon, UploadIcon, UserGroupIcon, ExportIcon } from './icons';

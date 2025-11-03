@@ -1,4 +1,0 @@
-{
-  "name": "Club Points Dashboard (LocalStorage)",
-  "description": "A dashboard to manage club members' points based on attendance and activity performance. It allows for member management, attendance tracking, and activity rating, with all data persisted in the browser's localStorage. No database required."
-}

@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useMemo } from 'react';
 import { Event, Member, Participant } from '../types';
 import { PlusIcon, ExportIcon, BackIcon, SearchIcon, UserAddIcon } from './icons';
