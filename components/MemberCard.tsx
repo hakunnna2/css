@@ -1,21 +1,26 @@
+// components/MemberCard.tsx
+
 import React from 'react';
-import { Member, Event } from '../types';
+import { Member, PopulatedEvent } from '../types'; // Use PopulatedEvent for consistency
 
 interface MemberCardProps {
   member: Member;
-  events: Event[];
+  events: PopulatedEvent[]; // Use PopulatedEvent
 }
 
 const MemberCard: React.FC<MemberCardProps> = ({ member, events }) => {
   const participatedEventDetails = events
     .map(event => {
-      const participation = event.participants.find(p => p.memberId === member.id);
+      // CORRECTED: Compare using ._id for reliability
+      const participation = event.participants.find(p => p.memberId._id === member._id);
       return participation ? { ...event, participation } : null;
     })
     .filter(Boolean);
 
   const totalPoints = participatedEventDetails.reduce((sum, event) => sum + (event?.participation.points || 0), 0);
-
+  
+  // ... rest of the component code is fine, no other changes needed
+  
   const statusStyles = {
     present: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300',
     absent: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300',
@@ -44,7 +49,7 @@ const MemberCard: React.FC<MemberCardProps> = ({ member, events }) => {
         {participatedEventDetails.length > 0 ? (
           <ul className="space-y-3 max-h-60 overflow-y-auto">
             {participatedEventDetails.map(event => (
-              event && <li key={event.id} className="grid grid-cols-3 items-center text-sm p-3 rounded-md bg-gray-50 dark:bg-gray-700/50 gap-2">
+              event && <li key={event._id} className="grid grid-cols-3 items-center text-sm p-3 rounded-md bg-gray-50 dark:bg-gray-700/50 gap-2">
                 <div className="col-span-1">
                     <p className="font-medium">{event.name}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(event.date).toLocaleDateString()}</p>

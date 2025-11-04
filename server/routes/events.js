@@ -1,4 +1,4 @@
-// server/routes/events.js (REPLACE the whole file)
+// server/routes/events.js (FINAL CORRECTED VERSION)
 
 const express = require('express');
 const router = express.Router();
@@ -10,7 +10,8 @@ const Member = require('../models/Member');
 router.get('/', async (req, res) => {
   try {
     const events = await Event.find()
-      .populate('participants.memberId', 'name cni') // Also fetch name/cni of participants
+      // CORRECTED: This now populates the FULL member object, not just name and cni.
+      .populate('participants.memberId') 
       .sort({ date: -1 });
     res.json(events);
   } catch (err) {
@@ -22,11 +23,11 @@ router.get('/', async (req, res) => {
 // @route   POST api/events
 // @desc    Create an event
 router.post('/', async (req, res) => {
-  const { name } = req.body; // Frontend will only send the name
+  const { name } = req.body;
   try {
     const newEvent = new Event({
       name,
-      date: new Date().toISOString(),
+      date: new Date(), // Using a Date object directly is cleaner
       participants: []
     });
     const event = await newEvent.save();
@@ -44,7 +45,6 @@ router.post('/:id/participants', async (req, res) => {
         const event = await Event.findById(req.params.id);
         if (!event) return res.status(404).json({ msg: 'Event not found' });
 
-        // Check if member already exists in the event
         const isAlreadyParticipant = event.participants.some(p => p.memberId.toString() === req.body.memberId);
         if (isAlreadyParticipant) {
             return res.status(400).json({ msg: 'Member is already a participant' });
@@ -52,7 +52,9 @@ router.post('/:id/participants', async (req, res) => {
         
         event.participants.push({ memberId: req.body.memberId, status: 'unmarked', points: 0 });
         await event.save();
-        const populatedEvent = await event.populate('participants.memberId', 'name cni');
+        
+        // CORRECTED: Populate the full member object after updating
+        const populatedEvent = await event.populate('participants.memberId');
         res.json(populatedEvent);
     } catch (err) {
         console.error(err.message);
@@ -71,7 +73,9 @@ router.delete('/:id/participants/:member_id', async (req, res) => {
         event.participants = event.participants.filter(p => p.memberId.toString() !== req.params.member_id);
         
         await event.save();
-        const populatedEvent = await event.populate('participants.memberId', 'name cni');
+
+        // CORRECTED: Populate the full member object after updating
+        const populatedEvent = await event.populate('participants.memberId');
         res.json(populatedEvent);
     } catch (err) {
         console.error(err.message);
@@ -92,17 +96,18 @@ router.put('/:id/participants/:member_id', async (req, res) => {
         if (!participant) return res.status(404).json({ msg: 'Participant not found' });
 
         if (status) participant.status = status;
-        // Check for undefined to allow setting points to 0
         if (points !== undefined) participant.points = points;
 
         await event.save();
-        const populatedEvent = await event.populate('participants.memberId', 'name cni');
+        
+        // CORRECTED: Populate the full member object after updating
+        const populatedEvent = await event.populate('participants.memberId');
         res.json(populatedEvent);
-    } catch (err) {
+    } catch (err)
+ {
         console.error(err.message);
         res.status(500).send('Server Error');
     }
 });
-
 
 module.exports = router;
