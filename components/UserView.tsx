@@ -3,11 +3,10 @@ import { Member, Event } from '../types';
 import MemberCard from './MemberCard';
 
 interface UserViewProps {
-  members: Member[];
   events: Event[];
 }
 
-const UserView: React.FC<UserViewProps> = ({ members, events }) => {
+const UserView: React.FC<UserViewProps> = ({ events }) => {
   const [cniInput, setCniInput] = useState('');
   const [searchedMember, setSearchedMember] = useState<Member | null | undefined>(undefined);
 
@@ -17,7 +16,14 @@ const UserView: React.FC<UserViewProps> = ({ members, events }) => {
       setSearchedMember(undefined);
       return;
     }
-    const foundMember = members.find(m => m.cni?.trim().toLowerCase() === cniInput.trim().toLowerCase());
+    const foundMember = events.flatMap(e => e.participants).map(p => {
+      const member = p.memberId;
+      return {
+        _id: member,
+        status: p.status,
+        points: p.points
+      };
+    }).find(m => m._id.trim().toLowerCase() === cniInput.trim().toLowerCase());
     setSearchedMember(foundMember || null);
   };
 

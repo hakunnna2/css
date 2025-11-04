@@ -22,14 +22,16 @@ export function useMembers() {
     }
   }
 
-  async function addMember(member: Member) {
+  async function addMember(member: Member): Promise<(Member & { _id: string }) | null> {
     try {
-      await db.addMember(member);
+      const result = await db.addMember(member);
+      if (!result.insertedId) throw new Error('Failed to add member');
+      const newMember = { ...member, _id: result.insertedId.toString() };
       await loadMembers(); // Reload the list
-      return true;
+      return newMember;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add member');
-      return false;
+      return null;
     }
   }
 

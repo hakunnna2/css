@@ -39,10 +39,10 @@ const App: React.FC = () => {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
-  const addMember = async (memberData: Omit<Member, '_id'>): Promise<Member | null> => {
+  const addMember = async (memberData: Omit<Member, '_id'>): Promise<(Member & { _id: string }) | null> => {
     try {
       const result = await dbAddMember(memberData as Member);
-      await refreshMembers();
+      if (!result) return null;
       return result;
     } catch (error) {
       console.error('Failed to add member:', error);
@@ -135,7 +135,6 @@ const App: React.FC = () => {
       console.error('Failed to update participant points:', error);
     }
   };
-  };
 
   const addNewMemberAndAddToEvent = async (eventId: string, memberData: Omit<Member, '_id'>) => {
     if (memberData.cni && members.some(m => m.cni?.toLowerCase() === memberData.cni?.toLowerCase())) {
@@ -145,8 +144,8 @@ const App: React.FC = () => {
     
     try {
       const result = await dbAddMember(memberData as Member);
-      if (result) {
-        await addParticipantToEvent(eventId, result._id!);
+      if (result && result._id) {
+        await addParticipantToEvent(eventId, result._id);
         await refreshMembers();
       }
     } catch (error) {
@@ -211,11 +210,11 @@ const App: React.FC = () => {
   };
   
   const exportEventParticipantsCSV = (eventId: string) => {
-    const event = events.find(e => e.id === eventId);
+    const event = events.find(e => e._id === eventId);
     if (!event) return;
 
     const participantsData = event.participants.map(p => {
-        const member = members.find(m => m.id === p.memberId);
+        const member = members.find(m => m._id === p.memberId);
         return member ? { ...member, status: p.status, points: p.points } : null;
     }).filter(Boolean) as (Member & { status: string; points: number })[];
 
@@ -288,7 +287,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (mode === 'user') {
-      return <UserView members={members} events={events} />;
+      return <UserView events={events} />;
     }
 
     if (mode === 'admin') {
@@ -296,20 +295,20 @@ const App: React.FC = () => {
         return <AdminLogin onLogin={handleAdminLogin} />;
       }
       
-      const selectedEvent = events.find(e => e.id === selectedEventId);
+      const selectedEvent = events.find(e => e._id === selectedEventId);
 
       if (selectedEvent) {
         return (
           <EventManagement
             event={selectedEvent}
-            allMembers={members}
+            members={members}
             onAddParticipant={addParticipantToEvent}
             onRemoveParticipant={removeParticipantFromEvent}
             onAddNewMemberAndAdd={addNewMemberAndAddToEvent}
             onUpdateStatus={updateParticipantStatus}
             onUpdatePoints={updateParticipantPoints}
             onExportCSV={exportEventParticipantsCSV}
-            onGoBack={() => setSelectedEventId(null)}
+            onBack={() => setSelectedEventId(null)}
           />
         );
       } else {
@@ -331,9 +330,9 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen text-gray-800 dark:text-gray-200">
       <Header 
-        currentMode={mode} 
-        onToggleMode={toggleMode} 
-        isAdminAuthenticated={isAdminAuthenticated}
+        mode={mode} 
+        setMode={setMode} 
+        isAuthenticated={isAdminAuthenticated}
         onLogout={handleAdminLogout}
       />
       <main className="container mx-auto p-4 md:p-6 lg:p-8">

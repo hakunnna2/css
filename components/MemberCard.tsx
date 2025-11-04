@@ -9,7 +9,7 @@ interface MemberCardProps {
 const MemberCard: React.FC<MemberCardProps> = ({ member, events }) => {
   const participatedEventDetails = events
     .map(event => {
-      const participation = event.participants.find(p => p.memberId === member.id);
+      const participation = event.participants.find(p => p.memberId === member._id);
       return participation ? { ...event, participation } : null;
     })
     .filter(Boolean);
@@ -44,7 +44,7 @@ const MemberCard: React.FC<MemberCardProps> = ({ member, events }) => {
         {participatedEventDetails.length > 0 ? (
           <ul className="space-y-3 max-h-60 overflow-y-auto">
             {participatedEventDetails.map(event => (
-              event && <li key={event.id} className="grid grid-cols-3 items-center text-sm p-3 rounded-md bg-gray-50 dark:bg-gray-700/50 gap-2">
+              event && <li key={event._id} className="grid grid-cols-3 items-center text-sm p-3 rounded-md bg-gray-50 dark:bg-gray-700/50 gap-2">
                 <div className="col-span-1">
                     <p className="font-medium">{event.name}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(event.date).toLocaleDateString()}</p>
