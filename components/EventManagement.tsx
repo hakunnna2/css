@@ -1,19 +1,24 @@
+// components/EventManagement.tsx (FINAL, FULLY RESPONSIVE VERSION)
+
 import React, { useState, useMemo } from 'react';
-import { Event, Member, Participant } from '../types';
-import { PlusIcon, ExportIcon, BackIcon, SearchIcon, UserAddIcon } from './icons';
+// Import the correct types from your central types file
+import { PopulatedEvent, Member } from '../types';
+// Assuming you have an icons.tsx file for these. If not, you can replace the <Icon/> components with text.
+import { BackIcon, ExportIcon, PlusIcon, SearchIcon, UserAddIcon } from './icons';
 
 interface EventManagementProps {
-  event: Event;
+  event: PopulatedEvent;
   allMembers: Member[];
   onAddParticipant: (eventId: string, memberId: string) => void;
   onRemoveParticipant: (eventId: string, memberId: string) => void;
-  onAddNewMemberAndAdd: (eventId: string, memberData: Omit<Member, 'id'>) => void;
+  onAddNewMemberAndAdd: (eventId: string, memberData: Omit<Member, '_id'>) => void;
   onUpdateStatus: (eventId: string, memberId: string, status: 'present' | 'absent') => void;
   onUpdatePoints: (eventId: string, memberId: string, points: number) => void;
   onExportCSV: (eventId: string) => void;
   onGoBack: () => void;
 }
 
+// Sub-component for the new member form (no changes needed here)
 const NewMemberForm: React.FC<{
     eventId: string;
     onAddNewMemberAndAdd: EventManagementProps['onAddNewMemberAndAdd'];
@@ -49,6 +54,7 @@ const NewMemberForm: React.FC<{
     );
 };
 
+// Main Component with Responsive Fixes
 const EventManagement: React.FC<EventManagementProps> = ({
   event,
   allMembers,
@@ -62,27 +68,20 @@ const EventManagement: React.FC<EventManagementProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   
-  const participantDetails = useMemo(() =>
-    event.participants.map(p => {
-        const member = allMembers.find(m => m.id === p.memberId);
-        return member ? { ...member, status: p.status, points: p.points } : null;
-    }).filter(Boolean) as (Member & { status: Participant['status'], points: number })[],
-    [event.participants, allMembers]
-  );
-
   const availableMembers = useMemo(() => {
-    const participantIds = new Set(event.participants.map(p => p.memberId));
-    const filtered = allMembers.filter(member => !participantIds.has(member.id));
+    const participantIds = new Set(event.participants.map(p => p.memberId._id));
+    const filtered = allMembers.filter(member => !participantIds.has(member._id));
     if (!searchTerm) return filtered;
     return filtered.filter(m => 
       m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.cni?.toLowerCase().includes(searchTerm.toLowerCase())
+      (m.cni && m.cni.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [allMembers, event.participants, searchTerm]);
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap justify-between items-center gap-4">
+      {/* RESPONSIVE HEADER: Stacks on mobile, row on medium screens up */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
         <div>
             <button onClick={onGoBack} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-2">
                 <BackIcon />
@@ -91,40 +90,42 @@ const EventManagement: React.FC<EventManagementProps> = ({
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{event.name}</h2>
             <p className="text-gray-500 dark:text-gray-400">{new Date(event.date).toLocaleDateString()}</p>
         </div>
-        <button onClick={() => onExportCSV(event.id)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+        <button onClick={() => onExportCSV(event._id)} className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
           <ExportIcon />
           <span>Export Participants CSV</span>
         </button>
       </div>
 
+      {/* RESPONSIVE MAIN LAYOUT: 1 column on mobile/tablet, 2 on large screens */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Participants Column */}
-        <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-          <h3 className="text-xl font-semibold mb-4">Participants ({participantDetails.length})</h3>
+        <div className="p-4 md:p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+          <h3 className="text-xl font-semibold mb-4">Participants ({event.participants.length})</h3>
           <div className="space-y-3 max-h-[32rem] overflow-y-auto pr-2">
-            {participantDetails.length > 0 ? participantDetails.map(member => (
-              <div key={member.id} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md space-y-3">
+            {event.participants.length > 0 ? event.participants.map(participant => (
+              <div key={participant._id} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md space-y-3">
                 <div className="flex items-start justify-between">
                     <div>
-                        <p className="font-medium text-gray-800 dark:text-gray-200">{member.name}</p>
-                        <p className="text-xs text-gray-500">{member.cni}</p>
+                        <p className="font-medium text-gray-800 dark:text-gray-200">{participant.memberId.name}</p>
+                        <p className="text-xs text-gray-500">{participant.memberId.cni}</p>
                     </div>
-                    <button onClick={() => onRemoveParticipant(event.id, member.id)} className="text-red-500 hover:text-red-700 text-xs font-semibold">Remove</button>
+                    <button onClick={() => onRemoveParticipant(event._id, participant.memberId._id)} className="text-red-500 hover:text-red-700 text-xs font-semibold">Remove</button>
                 </div>
-                <div className="flex items-center justify-between gap-2">
+                {/* RESPONSIVE CONTROLS: Items will wrap to the next line on small screens */}
+                <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-2">
-                        <button onClick={() => onUpdateStatus(event.id, member.id, 'present')} className={`px-3 py-1 text-xs rounded-full ${member.status === 'present' ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-gray-600'}`}>Present</button>
-                        <button onClick={() => onUpdateStatus(event.id, member.id, 'absent')} className={`px-3 py-1 text-xs rounded-full ${member.status === 'absent' ? 'bg-red-600 text-white' : 'bg-gray-200 dark:bg-gray-600'}`}>Absent</button>
+                        <button onClick={() => onUpdateStatus(event._id, participant.memberId._id, 'present')} className={`px-3 py-1 text-xs rounded-full ${participant.status === 'present' ? 'bg-green-600 text-white' : 'bg-gray-200 dark:bg-gray-600'}`}>Present</button>
+                        <button onClick={() => onUpdateStatus(event._id, participant.memberId._id, 'absent')} className={`px-3 py-1 text-xs rounded-full ${participant.status === 'absent' ? 'bg-red-600 text-white' : 'bg-gray-200 dark:bg-gray-600'}`}>Absent</button>
                     </div>
                     <div className="flex items-center gap-2">
-                        <label htmlFor={`points-${member.id}`} className="text-sm">Points:</label>
+                        <label htmlFor={`points-${participant.memberId._id}`} className="text-sm">Points:</label>
                         <input
-                            id={`points-${member.id}`}
+                            id={`points-${participant.memberId._id}`}
                             type="number"
-                            value={member.points}
-                            onChange={(e) => onUpdatePoints(event.id, member.id, parseInt(e.target.value, 10))}
+                            value={participant.points}
+                            onChange={(e) => onUpdatePoints(event._id, participant.memberId._id, parseInt(e.target.value, 10))}
                             className="w-16 p-1 text-sm border border-gray-300 rounded-md dark:bg-gray-600 dark:border-gray-500"
-                            disabled={member.status === 'absent'}
+                            disabled={participant.status !== 'present'}
                         />
                     </div>
                 </div>
@@ -134,9 +135,9 @@ const EventManagement: React.FC<EventManagementProps> = ({
         </div>
 
         {/* Add Members Column */}
-        <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md space-y-4">
+        <div className="p-4 md:p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md space-y-4">
           <h3 className="text-xl font-semibold">Add Members</h3>
-          <NewMemberForm eventId={event.id} onAddNewMemberAndAdd={onAddNewMemberAndAdd}/>
+          <NewMemberForm eventId={event._id} onAddNewMemberAndAdd={onAddNewMemberAndAdd}/>
 
           <div className="relative">
              <h4 className="font-semibold my-4">Search Existing Members</h4>
@@ -153,12 +154,12 @@ const EventManagement: React.FC<EventManagementProps> = ({
           </div>
           <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
             {availableMembers.map(member => (
-              <div key={member.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">
+              <div key={member._id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">
                 <div>
                   <p className="font-medium text-gray-800 dark:text-gray-200">{member.name}</p>
                   <p className="text-xs text-gray-500">{member.cni}</p>
                 </div>
-                <button onClick={() => onAddParticipant(event.id, member.id)} className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold">Add</button>
+                <button onClick={() => onAddParticipant(event._id, member._id)} className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold">Add</button>
               </div>
             ))}
           </div>

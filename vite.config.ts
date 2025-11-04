@@ -12,9 +12,7 @@ export default defineConfig(({ mode }) => {
       plugins: [react()],
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.MONGO_URL': JSON.stringify(env.MONGO_URL),
-        'import.meta.env.VITE_MONGO_URL': JSON.stringify(env.MONGO_URL)
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
       },
       resolve: {
         alias: {

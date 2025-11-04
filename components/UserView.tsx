@@ -1,72 +1,82 @@
+// components/UserView.tsx (REPLACE the whole file)
+
 import React, { useState } from 'react';
-import { Member, Event } from '../types';
-import MemberCard from './MemberCard';
+// Import the correct types from your central types file
+import { Member, PopulatedEvent } from '../types';
 
 interface UserViewProps {
-  events: Event[];
+  members: Member[];
+  events: PopulatedEvent[]; // <-- Use PopulatedEvent here
 }
 
-const UserView: React.FC<UserViewProps> = ({ events }) => {
-  const [cniInput, setCniInput] = useState('');
-  const [searchedMember, setSearchedMember] = useState<Member | null | undefined>(undefined);
+const UserView: React.FC<UserViewProps> = ({ members, events }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [foundMember, setFoundMember] = useState<Member | null>(null);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cniInput.trim()) {
-      setSearchedMember(undefined);
-      return;
-    }
-    const foundMember = events.flatMap(e => e.participants).map(p => {
-      const member = p.memberId;
-      return {
-        _id: member,
-        status: p.status,
-        points: p.points
-      };
-    }).find(m => m._id.trim().toLowerCase() === cniInput.trim().toLowerCase());
-    setSearchedMember(foundMember || null);
+    const member = members.find(m => m.cni?.toLowerCase() === searchTerm.toLowerCase());
+    setFoundMember(member || null);
   };
 
+  // Calculate total points for the found member
+  const totalPoints = foundMember
+    ? events.reduce((total, event) => {
+        const participant = event.participants.find(p => p.memberId._id === foundMember._id);
+        return total + (participant ? participant.points : 0);
+      }, 0)
+    : 0;
+
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-1 text-gray-800 dark:text-white">Check Your Participation</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Enter your CNI to find your record and view your progress.
-        </p>
-        <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
-          <label htmlFor="cni-search" className="sr-only">Your CNI</label>
+    <div className="space-y-8">
+      {/* Search Section */}
+      <div className="max-w-xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-4 text-center">Check Your Participation</h2>
+        <form onSubmit={handleSearch} className="flex gap-2">
           <input
-            id="cni-search"
             type="text"
-            value={cniInput}
-            onChange={(e) => setCniInput(e.target.value)}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Enter your CNI to find your record"
-            className="flex-grow w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
+            className="flex-grow w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600"
+            required
           />
-          <button
-            type="submit"
-            className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out"
-          >
+          <button type="submit" className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
             Search
           </button>
         </form>
       </div>
 
-      <div className="mt-8">
-        {searchedMember && (
-          <MemberCard
-            member={searchedMember}
-            events={events}
-          />
-        )}
-        {searchedMember === null && (
-          <div className="p-6 bg-yellow-50 dark:bg-yellow-900/50 rounded-lg text-center text-yellow-800 dark:text-yellow-300">
-            <p className="font-medium">Member Not Found</p>
-            <p className="text-sm">No record was found with the provided CNI. Please check the number and try again.</p>
+      {/* Results Section */}
+      {foundMember && (
+        <div className="max-w-xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+          <h3 className="text-2xl font-bold text-center">{foundMember.name}</h3>
+          <p className="text-center text-gray-500 dark:text-gray-400 mb-6">{foundMember.cni}</p>
+
+          <div className="text-center mb-6">
+            <p className="text-lg text-gray-600 dark:text-gray-300">Total Points</p>
+            <p className="text-5xl font-bold text-indigo-600 dark:text-indigo-400">{totalPoints}</p>
           </div>
-        )}
-      </div>
+          
+          <h4 className="font-semibold mb-2">Participation History:</h4>
+          <ul className="space-y-2">
+            {events.map(event => {
+              const participant = event.participants.find(p => p.memberId._id === foundMember._id);
+              if (!participant) return null; // Don't show events the member didn't participate in
+
+              return (
+                <li key={event._id} className="flex justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">
+                  <div>
+                    <p className="font-medium">{event.name}</p>
+                    <p className="text-sm text-gray-500">{new Date(event.date).toLocaleDateString()}</p>
+                  </div>
+                  <p className="font-semibold">{participant.points} Points</p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };

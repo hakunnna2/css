@@ -1,9 +1,13 @@
+// components/AdminDashboard.tsx (FINAL VERSION with Report Button Text)
+
 import React, { useState } from 'react';
-import { Event } from '../types';
+// Assuming you have an icons.tsx file. If not, replace <Icon/> with text.
 import { PlusIcon, UploadIcon, UserGroupIcon, ExportIcon } from './icons';
+// Import the correct types from your central types file
+import { PopulatedEvent } from '../types';
 
 interface AdminDashboardProps {
-  events: Event[];
+  events: PopulatedEvent[];
   membersCount: number;
   onAddEvent: (name: string) => void;
   onManageEvent: (eventId: string) => void;
@@ -17,8 +21,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ events, membersCount, o
 
   const handleAddEvent = (e: React.FormEvent) => {
     e.preventDefault();
-    onAddEvent(eventName);
-    setEventName('');
+    if (eventName.trim()) {
+        onAddEvent(eventName);
+        setEventName('');
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -86,19 +92,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ events, membersCount, o
                       Required headers: <code className="bg-gray-200 dark:bg-gray-600 p-1 rounded text-xs">Nom complet, CNI</code>.
                     </p>
                   </div>
-                   <div>
-                    <h3 className="font-medium text-gray-700 dark:text-gray-300">Export All Club Data</h3>
+                  {/* --- THIS IS THE UPDATED SECTION --- */}
+                  <div>
+                    <h3 className="font-medium text-gray-700 dark:text-gray-300">Export Participation Report</h3>
                     <p className="text-xs text-gray-500 mb-2">
-                      Export all members and event data to a single JSON file for backup or publishing.
+                      Export a detailed CSV list of points earned by each member in every activity.
                     </p>
                     <button 
                       onClick={onExportAllData} 
                       className="w-full flex items-center justify-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150 ease-in-out"
                     >
                       <ExportIcon />
-                      <span className="ml-2">Export All Data (.json)</span>
+                      <span className="ml-2">Export Full Report (.csv)</span>
                     </button>
                   </div>
+                  {/* --- END OF UPDATED SECTION --- */}
                 </div>
             </div>
         </div>
@@ -117,7 +125,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ events, membersCount, o
             [...events].reverse().map(event => {
               const totalPoints = event.participants.reduce((sum, p) => sum + (p.points || 0), 0);
               return (
-                <div key={event.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div key={event._id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                   <div>
                     <h3 className="font-semibold text-gray-900 dark:text-white">{event.name}</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -130,7 +138,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ events, membersCount, o
                       <p className="text-xs text-gray-500">Total Points</p>
                     </div>
                     <button 
-                      onClick={() => onManageEvent(event.id)}
+                      onClick={() => onManageEvent(event._id)}
                       className="px-4 py-2 bg-gray-600 text-white text-sm font-medium rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                     >
                       Manage
