@@ -15,41 +15,70 @@ const ADMIN_CREDENTIALS = [
 ];
 
 const App: React.FC = () => {
-  const { members, loading: membersLoading, error: membersError, addMember, updateMember, deleteMember } = useMembers();
-  const { events, loading: eventsLoading, error: eventsError, addEvent, updateEvent, deleteEvent } = useEvents();
+  const { 
+    members, 
+    loading: membersLoading, 
+    error: membersError, 
+    addMember: dbAddMember, 
+    updateMember: dbUpdateMember, 
+    deleteMember: dbDeleteMember,
+    refresh: refreshMembers 
+  } = useMembers();
+
+  const { 
+    events, 
+    loading: eventsLoading, 
+    error: eventsError, 
+    addEvent: dbAddEvent, 
+    updateEvent: dbUpdateEvent,
+    deleteEvent: dbDeleteEvent,
+    refresh: refreshEvents
+  } = useEvents();
   
   const [mode, setMode] = useState<'user' | 'admin'>('user');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
-  const addMember = (memberData: Omit<Member, 'id'>): Member => {
-    const newMember: Member = {
-      ...memberData,
-      id: crypto.randomUUID(),
-    };
-    setMembers(prev => [...prev, newMember]);
-    return newMember;
+  const addMember = async (memberData: Omit<Member, '_id'>): Promise<Member | null> => {
+    try {
+      const result = await dbAddMember(memberData as Member);
+      await refreshMembers();
+      return result;
+    } catch (error) {
+      console.error('Failed to add member:', error);
+      return null;
+    }
   };
 
-  const addEvent = (name: string) => {
+  const addEvent = async (name: string) => {
     if (name.trim() === '') return;
-    const newEvent: Event = {
-      id: crypto.randomUUID(),
+    const newEvent: Omit<Event, '_id'> = {
       name,
       date: new Date().toISOString(),
       participants: [],
     };
-    setEvents(prev => [...prev, newEvent]);
+    try {
+      await dbAddEvent(newEvent as Event);
+      await refreshEvents();
+    } catch (error) {
+      console.error('Failed to add event:', error);
+    }
   };
 
-  const addParticipantToEvent = (eventId: string, memberId: string) => {
-    setEvents(prevEvents => prevEvents.map(event => {
-      if (event.id === eventId && !event.participants.some(p => p.memberId === memberId)) {
-        const newParticipant: Participant = { memberId, status: 'unmarked', points: 0 };
-        return { ...event, participants: [...event.participants, newParticipant] };
-      }
-      return event;
-    }));
+  const addParticipantToEvent = async (eventId: string, memberId: string) => {
+    try {
+      const event = events.find(e => e._id === eventId);
+      if (!event || event.participants.some(p => p.memberId === memberId)) return;
+
+      const updatedEvent = {
+        ...event,
+        participants: [
+          ...event.participants,
+          { memberId, status: 'unmarked', points: 0 }
+        ]
+      };
+      await dbUpdateEvent(eventId, updatedEvent);
+      await refreshEvents();
   };
   
   const removeParticipantFromEvent = (eventId: string, memberId: string) => {
@@ -89,18 +118,26 @@ const App: React.FC = () => {
       }));
   };
 
-  const addNewMemberAndAddToEvent = (eventId: string, memberData: Omit<Member, 'id'>) => {
+  const addNewMemberAndAddToEvent = async (eventId: string, memberData: Omit<Member, '_id'>) => {
     if (memberData.cni && members.some(m => m.cni?.toLowerCase() === memberData.cni?.toLowerCase())) {
         alert("A member with this CNI already exists.");
         return;
     }
-    const newMember = addMember(memberData);
-    addParticipantToEvent(eventId, newMember.id);
+    
+    try {
+      const result = await dbAddMember(memberData as Member);
+      if (result) {
+        await addParticipantToEvent(eventId, result._id!);
+        await refreshMembers();
+      }
+    } catch (error) {
+      console.error('Failed to add member and add to event:', error);
+    }
   };
 
-  const importMembers = (file: File) => {
+  const importMembers = async (file: File) => {
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const text = event.target?.result as string;
       if (!text) return alert("File is empty or could not be read.");
 
@@ -116,8 +153,8 @@ const App: React.FC = () => {
 
       if (nameIndex === -1) return alert('CSV must contain a "Nom complet" column.');
 
-      const newMembers: Member[] = [];
       const existingCnis = new Set(members.map(m => m.cni?.toLowerCase()).filter(Boolean));
+      let importedCount = 0;
 
       for (let i = 1; i < rows.length; i++) {
         const values = rows[i].split(',').map(v => v.trim());
@@ -125,22 +162,27 @@ const App: React.FC = () => {
         const cni = cniIndex > -1 ? values[cniIndex] : undefined;
 
         if (name && cni && !existingCnis.has(cni.toLowerCase())) {
-          const newMember: Member = {
-            id: crypto.randomUUID(),
+          const newMember: Omit<Member, '_id'> = {
             name,
             cni,
             cne: cneIndex > -1 ? values[cneIndex] : undefined,
             schoolLevel: schoolLevelIndex > -1 ? values[schoolLevelIndex] : undefined,
             whatsapp: whatsappIndex > -1 ? values[whatsappIndex] : undefined,
           };
-          newMembers.push(newMember);
-          existingCnis.add(cni.toLowerCase());
+          
+          try {
+            await dbAddMember(newMember as Member);
+            importedCount++;
+            existingCnis.add(cni.toLowerCase());
+          } catch (error) {
+            console.error('Failed to import member:', error);
+          }
         }
       }
 
-      if (newMembers.length > 0) {
-        setMembers(prev => [...prev, ...newMembers]);
-        alert(`${newMembers.length} new members imported successfully!`);
+      if (importedCount > 0) {
+        await refreshMembers();
+        alert(`${importedCount} new members imported successfully!`);
       } else {
         alert("No new members found to import. They may already exist in the list (checked by CNI).");
       }

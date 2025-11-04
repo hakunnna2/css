@@ -1,5 +1,5 @@
 export interface Member {
-  id: string;
+  _id?: string;
   name: string;
   cni?: string;
   cne?: string;
@@ -14,7 +14,7 @@ export interface Participant {
 }
 
 export interface Event {
-  id: string;
+  _id?: string;
   name: string;
   date: string;
   participants: Participant[];
