@@ -79,43 +79,62 @@ const App: React.FC = () => {
       };
       await dbUpdateEvent(eventId, updatedEvent);
       await refreshEvents();
+    } catch (error) {
+      console.error('Failed to add participant:', error);
+    }
   };
   
-  const removeParticipantFromEvent = (eventId: string, memberId: string) => {
-    setEvents(prevEvents => prevEvents.map(event => {
-      if (event.id === eventId) {
-        return { ...event, participants: event.participants.filter(p => p.memberId !== memberId) };
-      }
-      return event;
-    }));
+  const removeParticipantFromEvent = async (eventId: string, memberId: string) => {
+    try {
+      const event = events.find(e => e._id === eventId);
+      if (!event) return;
+
+      const updatedEvent = {
+        ...event,
+        participants: event.participants.filter(p => p.memberId !== memberId)
+      };
+      await dbUpdateEvent(eventId, updatedEvent);
+      await refreshEvents();
+    } catch (error) {
+      console.error('Failed to remove participant:', error);
+    }
   };
 
-  const updateParticipantStatus = (eventId: string, memberId: string, status: 'present' | 'absent') => {
-    setEvents(prevEvents => prevEvents.map(event => {
-        if (event.id === eventId) {
-            return {
-                ...event,
-                participants: event.participants.map(p => 
-                    p.memberId === memberId ? { ...p, status, points: status === 'absent' ? 0 : p.points } : p
-                )
-            };
-        }
-        return event;
-    }));
+  const updateParticipantStatus = async (eventId: string, memberId: string, status: 'present' | 'absent') => {
+    try {
+      const event = events.find(e => e._id === eventId);
+      if (!event) return;
+
+      const updatedEvent = {
+        ...event,
+        participants: event.participants.map(p => 
+          p.memberId === memberId ? { ...p, status, points: status === 'absent' ? 0 : p.points } : p
+        )
+      };
+      await dbUpdateEvent(eventId, updatedEvent);
+      await refreshEvents();
+    } catch (error) {
+      console.error('Failed to update participant status:', error);
+    }
   };
 
-  const updateParticipantPoints = (eventId: string, memberId: string, points: number) => {
-      setEvents(prevEvents => prevEvents.map(event => {
-          if (event.id === eventId) {
-              return {
-                  ...event,
-                  participants: event.participants.map(p =>
-                      p.memberId === memberId ? { ...p, points: isNaN(points) ? 0 : points } : p
-                  )
-              };
-          }
-          return event;
-      }));
+  const updateParticipantPoints = async (eventId: string, memberId: string, points: number) => {
+    try {
+      const event = events.find(e => e._id === eventId);
+      if (!event) return;
+
+      const updatedEvent = {
+        ...event,
+        participants: event.participants.map(p =>
+          p.memberId === memberId ? { ...p, points: isNaN(points) ? 0 : points } : p
+        )
+      };
+      await dbUpdateEvent(eventId, updatedEvent);
+      await refreshEvents();
+    } catch (error) {
+      console.error('Failed to update participant points:', error);
+    }
+  };
   };
 
   const addNewMemberAndAddToEvent = async (eventId: string, memberData: Omit<Member, '_id'>) => {
